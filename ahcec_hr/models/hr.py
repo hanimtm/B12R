@@ -63,13 +63,13 @@ class HrEmployee(models.Model):
             else:
                 employee.duration_in_months = 0.0
 
-    @api.depends('name', 'middle_name', 'last_name')
+    @api.depends('name', 'middle_name', 'grand_father_name', 'last_name')
     def _get_full_name(self):
         for rec in self:
-            if rec.name and rec.middle_name and rec.last_name:
-                rec.full_name = "%s %s %s" % (rec.name or '', rec.middle_name or '', rec.last_name or '')
+            if rec.name and rec.middle_name and rec.grand_father_name and rec.last_name:
+                rec.full_name = "%s %s %s %s" % (rec.name or '', rec.middle_name or '', rec.grand_father_name or '', rec.last_name or '')
             else:
-                rec.full_name = "%s %s" % (rec.name or '', rec.last_name or '')
+                rec.full_name = "%s %s %s" % (rec.name or '', rec.middle_name or '',  rec.last_name or '')
 
     @api.model
     def get_employee(self):
@@ -110,6 +110,7 @@ class HrEmployee(models.Model):
                                         ('terminate', 'Terminated/Inactive')
                                         ], string='Employment Status', default='active', track_visibility='onchange')
     middle_name = fields.Char(size=64, string='Middle Name')
+    grand_father_name = fields.Char(size=64, string='Grand Father Name')
     last_name = fields.Char(size=64, string='Last Name')
     full_name = fields.Char(string='Full Name', compute='_get_full_name')
     employee_code = fields.Char('Code', size=10, track_visibility='onchange')
@@ -172,7 +173,7 @@ class HrEmployee(models.Model):
         else:
             self.total_service_year = "0 Years 0 Months"
 
-    @api.depends('name', 'middle_name', 'last_name')
+    @api.depends('name', 'middle_name', 'grand_father_name', 'last_name')
     def name_get(self):
         """
             Generate the single string for Name
@@ -185,7 +186,9 @@ class HrEmployee(models.Model):
             if employee.employee_code:
                 code = '[' + employee.employee_code + '] '
             name = employee.name
-            name = ' '.join([name or '', employee.middle_name or '', employee.last_name or ''])
+            name = ' '.join([name or '', employee.middle_name or '',
+                             employee.grand_father_name or '',
+                             employee.last_name or ''])
             res.append((employee.id, code + name))
         return res
 

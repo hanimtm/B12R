@@ -38,7 +38,8 @@
                         <label for="name" class="oe_edit_only"/>
                         <h1 class="o_row">
                             <field name="name" placeholder="Employee's Name" required="True"/>
-                            <field name="middle_name" placeholder="Middle Name"/>
+                            <field name="middle_name" placeholder="Middle Name" required="True"/>
+                            <field name="grand_father_name" placeholder="Grand Father Name"/>
                             <field name="last_name" placeholder="Last Name" required='1'/>
                         </h1>
                         <br/>
@@ -63,7 +64,7 @@
             </xpath>
             <xpath expr="//field[@name='country_id']" position="after">
                 <field name="religion"/>
-                <field name="is_saudi" invisible="0"/>
+                <field name="is_saudi" invisible="1"/>
             </xpath>
             <xpath expr="//group[@name='active_group']" position="before">
                 <group string="Employment">
