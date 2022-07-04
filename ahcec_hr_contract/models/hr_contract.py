@@ -32,12 +32,10 @@ class HRContract(models.Model):
     HRA = fields.Float(string='House Rent Allowance')
     is_TA = fields.Boolean(string="Eligible for TA")
     TA = fields.Float(string='Transport Allowance')
-    is_cda = fields.Boolean(string="Eligible for C & SD Allowance")
-    cda = fields.Float(string='C & SD Allowance')  # Consumables and Spending Differentials
     is_other_allow = fields.Boolean(string="Eligible for Other Allowance")
     other_allow = fields.Float(string='Other Allowance')
-    is_shift_allow = fields.Boolean(string="Eligible for Shift Allowance")
-    shift_allow = fields.Float(string='Shift Allowance')
+    # is_shift_allow = fields.Boolean(string="Eligible for Shift Allowance")
+    # shift_allow = fields.Float(string='Shift Allowance')
     is_remote_allow = fields.Boolean(string="Eligible for Remote Area Allowance")
     remote_allow = fields.Float(string='Remote Area Allowance')
     total_salary = fields.Float(string='Total Salary', compute='_get_total')
@@ -118,17 +116,14 @@ class HRContract(models.Model):
             contract.total_monthly_cost = contract.monthly_indirect_cost + contract.total_salary
             contract.total_yearly_cost = contract.total_monthly_cost * 12
 
-    @api.depends('wage', 'mobile_allowance', 'signon_bonus_amount', 'HRA', 'TA', 'cda', 'other_allow', 'shift_allow',
-                 'remote_allow')
+    @api.depends('wage', 'mobile_allowance', 'signon_bonus_amount', 'HRA', 'TA', 'other_allow', 'remote_allow')
     def _get_total(self):
         for contract in self:
             contract.total_salary = contract.wage + \
                                     contract.mobile_allowance + \
                                     contract.signon_bonus_amount + \
                                     contract.HRA + contract.TA + \
-                                    contract.cda + \
                                     contract.other_allow + \
-                                    contract.shift_allow + \
                                     contract.remote_allow
 
     @api.depends('is_vacation', 'total_salary')

@@ -240,8 +240,8 @@ class PackageLine(models.Model):
                     package.current_package = contract.TA
                 elif package.name == 'hra':
                     package.current_package = contract.HRA
-                elif package.name == 'csd':
-                    package.current_package = contract.cda
+                # elif package.name == 'csd':
+                #     package.current_package = contract.cda
                 elif package.name == 'mobile':
                     package.current_package = contract.mobile_allowance
                 elif package.name == 'shift':
