@@ -12,8 +12,8 @@ class HrPayslip(models.Model):
 
     def _include_gosi(self):
         for line in self:
-            date_from = datetime.strptime(line.date_from, DEFAULT_SERVER_DATE_FORMAT)
-            day_to = datetime.strptime(line.date_to, DEFAULT_SERVER_DATE_FORMAT)
+            date_from = datetime.strptime(str(line.date_from), DEFAULT_SERVER_DATE_FORMAT)
+            day_to = datetime.strptime(str(line.date_to), DEFAULT_SERVER_DATE_FORMAT)
             day_upto = date_from + relativedelta(day=25)
             last_date = day_to + relativedelta(months=+1, day=1, days=-1)
             if day_to == last_date and date_from < day_upto:
@@ -28,10 +28,10 @@ class HrPayslip(models.Model):
         """
             onchange details of employee based on selecting gosi_id.
         """
-        res = super(HrPayslip, self).onchange_employee()
+        # res = super(HrPayslip, self).onchange_employee()
         if self.employee_id:
             self.gosi_id = self.employee_id.gosi_ids.id
-        return res
+        # return res
 
     def action_payslip_done(self):
         """

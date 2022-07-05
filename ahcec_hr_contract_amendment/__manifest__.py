@@ -14,7 +14,7 @@
         'data/hr_payroll_data.xml',
         'security/ir.model.access.csv',
         'security/security.xml',
-        'wizard/batch_payroll.xml',
+        # 'wizard/batch_payroll.xml',
         # 'wizard/leaves_adjust_view.xml',
         'views/amendment_view.xml',
         'menu.xml',

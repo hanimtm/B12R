@@ -8,10 +8,12 @@ import pytz
 
 from datetime import datetime
 
+
 class HrPayslipLine(models.Model):
     _inherit = 'hr.payslip.line'
 
     salary_type = fields.Many2one('hr.salary.type', string='Type')
+
 
 class Employee(models.Model):
     _inherit = 'hr.employee'
@@ -113,22 +115,22 @@ class Contract(models.Model):
                     day_from_end = datetime.strptime(((day_from + timedelta(days=day)).strftime("%Y-%m-%d 23:59:59")),
                                                      DEFAULT_SERVER_DATETIME_FORMAT)
                     holiday_ids = self.env['hr.holidays'].sudo().search([('type', '=', 'remove'),
-                                                                  ('employee_id', '=', contracts.employee_id.id),
-                                                                  ('state', '=', 'validate'),
-                                                                  '|',
-                                                                  '&',
-                                                                  ('date_from', '>=', str(day_from_start)),
-                                                                  ('date_from', '<=', str(day_from_end)),
-                                                                  '&',
-                                                                  ('date_to', '>=', str(day_from_start)),
-                                                                  ('date_to', '<=', str(day_from_end))
-                                                                  ])
+                                                                         ('employee_id', '=', contracts.employee_id.id),
+                                                                         ('state', '=', 'validate'),
+                                                                         '|',
+                                                                         '&',
+                                                                         ('date_from', '>=', str(day_from_start)),
+                                                                         ('date_from', '<=', str(day_from_end)),
+                                                                         '&',
+                                                                         ('date_to', '>=', str(day_from_start)),
+                                                                         ('date_to', '<=', str(day_from_end))
+                                                                         ])
                     leave_details = self.env['leave.detail'].sudo().search([('holiday_id', 'in', holiday_ids.ids),
-                                                                     ('period_id.date_start', '<=',
-                                                                      str(day_from_start.date())),
-                                                                     ('period_id.date_stop', '>=',
-                                                                      str(day_from_start.date())),
-                                                                     ])
+                                                                            ('period_id.date_start', '<=',
+                                                                             str(day_from_start.date())),
+                                                                            ('period_id.date_stop', '>=',
+                                                                             str(day_from_start.date())),
+                                                                            ])
                     leave_detail_list.extend(leave_details.ids)
                     if holiday_ids:
                         holiday_list.extend(holiday_ids.ids)
@@ -371,7 +373,7 @@ class Payslip(models.Model):
                                 'journal_id': slip.journal_id.id,
                                 'date': date,
                                 'debit': 0.0,  # amount < 0.0 and -amount or 0.0,
-                                'credit': total_debit,#round(amount, 2),
+                                'credit': total_debit,  # round(amount, 2),
                                 'analytic_account_id': line.salary_rule_id.analytic_account_id.id,
                                 'tax_line_id': line.salary_rule_id.account_tax_id.id,
                             })
@@ -391,266 +393,270 @@ class Payslip(models.Model):
         # except Exception:
         #      print('Error')
 
-    def check_installments_pay(self):
-        slip_line_obj = self.env['hr.payslip.line']
-        loan_obj = self.env['hr.loan']
-        rule_obj = self.env['hr.salary.rule']
-        skip_installment_obj = self.env['hr.skip.installment']
-        for payslip in self:
-            if not payslip.contract_id:
-                raise UserError(_("Please enter Employee contract first."))
-            loan_ids = loan_obj.search(['|', '&', ('start_date', '>=', payslip.date_from),
-                                        ('start_date', '<=', payslip.date_to),
-                                        ('start_date', '<=', payslip.date_from),
-                                        ('employee_id', '=', payslip.employee_id.id),
-                                        ('state', '=', 'approve')])
-            rule_ids = rule_obj.search([('code', '=', 'LOAN')])
-            if rule_ids:
-                rule = rule_ids[0]
-                oids = slip_line_obj.search([('slip_id', '=', payslip.id), ('code', '=', 'LOAN')])
-                if oids:
-                    oids.unlink()
-                for loan in loan_ids:
-                    skip_installment_ids = skip_installment_obj.search([('loan_id','=',loan.id),('state','=','approve'),('date','>=',payslip.date_from),('date','<=',payslip.date_to)])
-                    if not skip_installment_ids:
-                        slip_line_data = {
-                            'slip_id': payslip.id,
-                            'salary_rule_id': rule.id,
-                            'contract_id': payslip.contract_id.id,
-                            'name': loan.name,
-                            'code': 'LOAN' + str(loan.id),
-                            'category_id': rule.category_id.id,
-                            'sequence': rule.sequence + loan.id,
-                            'appears_on_payslip': rule.appears_on_payslip,
-                            'condition_select': rule.condition_select,
-                            'condition_python': rule.condition_python,
-                            'condition_range': rule.condition_range,
-                            'condition_range_min': rule.condition_range_min,
-                            'condition_range_max': rule.condition_range_max,
-                            'amount_select': rule.amount_select,
-                            'amount_fix': rule.amount_fix,
-                            'amount_python_compute': rule.amount_python_compute,
-                            'amount_percentage': rule.amount_percentage,
-                            'amount_percentage_base': rule.amount_percentage_base,
-                            'register_id': rule.register_id.id,
-                            'salary_type': rule.type.id,
-                            'amount': -(loan.deduction_amount),
-                            'employee_id': payslip.employee_id.id,
-                        }
-                        if abs(slip_line_data['amount']) > loan.amount_to_pay:
-                            slip_line_data.update({'amount': -(loan.amount_to_pay)})
-                        slip_line_obj.create(slip_line_data)
-                        net_ids = slip_line_obj.search([('slip_id', '=', payslip.id), ('code', '=', 'NET')])
-                        if net_ids:
-                            net_record = net_ids[0]
-                            net_ids.write({'amount': net_record.amount + slip_line_data['amount']})
-        return True
-
-    def compute_sheet_ahcec(self):
-        for payslip in self:
-            number = payslip.number or self.env['ir.sequence'].next_by_code('salary.slip')
-            # delete old payslip lines
-            # payslip.line_ids.unlink()
-
-            payslip.line_ids = [(5,0,0)]
-
-            # set the list of contract for which the rules have to be applied
-            # if we don't give the contract, then the rules to apply should be for all current contracts of the employee
-            contract_ids = payslip.contract_id.ids or \
-                           self.get_contract(payslip.employee_id, payslip.date_from, payslip.date_to)
-            lines = [(0, 0, line) for line in self._get_payslip_lines_ahcec(contract_ids, payslip.id)]
-            payslip.write({'line_ids': lines, 'number': number})
-            payslip._get_work_type_salary(payslip, payslip.employee_id, payslip.date_from, payslip.date_to)
-            loan_ids = self.env['hr.loan'].sudo().search(['|', '&', ('start_date', '>=', payslip.date_from),
-                                        ('start_date', '<=', payslip.date_to),
-                                        ('start_date', '<=', payslip.date_from),
-                                        ('employee_id', '=', payslip.employee_id.id),
-                                        ('state', '=', 'approve')])
-            if loan_ids:
-                payslip.check_installments_pay()
-
-            other_ids = self.env['other.hr.payslip'].sudo().search([('date', '>=', payslip.date_from),
-                                          ('date', '<=', payslip.date_to),
-                                          ('employee_id', '=', payslip.employee_id.id),
-                                          ('state', '=', 'done')])
-            if other_ids:
-                payslip.check_other_allowance_new()
-            total_amount = sum(payslip.line_ids.filtered(lambda line: line.category_id.code == 'ALW').mapped('amount'))
-            basic = sum(payslip.line_ids.filtered(lambda line: line.category_id.code == 'BASIC').mapped('amount'))
-            payslip.vacation_pay = vacation_pay = 0
-            if payslip.month_days - payslip.leave_days > 0:
-                payslip.vacation_pay = vacation_pay = ((basic + total_amount) / (
-                        payslip.month_days - payslip.leave_days)) * payslip.annual_leaves
-
-            if payslip.vacation_pay:
-                slip_line_obj = self.env['hr.payslip.line']
-                WORTH_PAY_IDS = slip_line_obj.sudo().search([('slip_id', '=', payslip.id), ('code', '=', 'WORTH_PAY')])
-                VAC_PAY_IDS = slip_line_obj.sudo().search([('slip_id', '=', payslip.id), ('code', '=', 'VAC_PAY')])
-                if VAC_PAY_IDS:
-                    VAC_PAY_IDS.write({'amount': vacation_pay})
-                if WORTH_PAY_IDS:
-                    WORTH_PAY_record = WORTH_PAY_IDS[0]
-                    WORTH_PAY_IDS.write({'amount': basic - vacation_pay})
-        return True
-
-    @api.model
-    def _get_payslip_lines_ahcec(self, contract_ids, payslip_id):
-        def _sum_salary_rule_category(localdict, category, amount):
-            if category.parent_id:
-                localdict = _sum_salary_rule_category(localdict, category.parent_id, amount)
-            localdict['categories'].dict[category.code] = category.code in localdict['categories'].dict and \
-                                                          localdict['categories'].dict[category.code] + amount or amount
-            return localdict
-
-        class BrowsableObject(object):
-            def __init__(self, employee_id, dict, env):
-                self.employee_id = employee_id
-                self.dict = dict
-                self.env = env
-
-            def __getattr__(self, attr):
-                return attr in self.dict and self.dict.__getitem__(attr) or 0.0
-
-        class InputLine(BrowsableObject):
-            """a class that will be used into the python code, mainly for usability purposes"""
-
-            def sum(self, code, from_date, to_date=None):
-                if to_date is None:
-                    to_date = fields.Date.today()
-                self.env.cr.execute("""
-                        SELECT sum(amount) as sum
-                        FROM hr_payslip as hp, hr_payslip_input as pi
-                        WHERE hp.employee_id = %s AND hp.state = 'done'
-                        AND hp.date_from >= %s AND hp.date_to <= %s AND hp.id = pi.payslip_id AND pi.code = %s""",
-                                    (self.employee_id, from_date, to_date, code))
-                return self.env.cr.fetchone()[0] or 0.0
-
-        class WorkedDays(BrowsableObject):
-            """a class that will be used into the python code, mainly for usability purposes"""
-
-            def _sum(self, code, from_date, to_date=None):
-                if to_date is None:
-                    to_date = fields.Date.today()
-                self.env.cr.execute("""
-                        SELECT sum(number_of_days) as number_of_days, sum(number_of_hours) as number_of_hours
-                        FROM hr_payslip as hp, hr_payslip_worked_days as pi
-                        WHERE hp.employee_id = %s AND hp.state = 'done'
-                        AND hp.date_from >= %s AND hp.date_to <= %s AND hp.id = pi.payslip_id AND pi.code = %s""",
-                                    (self.employee_id, from_date, to_date, code))
-                return self.env.cr.fetchone()
-
-            def sum(self, code, from_date, to_date=None):
-                res = self._sum(code, from_date, to_date)
-                return res and res[0] or 0.0
-
-            def sum_hours(self, code, from_date, to_date=None):
-                res = self._sum(code, from_date, to_date)
-                return res and res[1] or 0.0
-
-        class Payslips(BrowsableObject):
-            """a class that will be used into the python code, mainly for usability purposes"""
-
-            def sum(self, code, from_date, to_date=None):
-                if to_date is None:
-                    to_date = fields.Date.today()
-                self.env.cr.execute("""SELECT sum(case when hp.credit_note = False then (pl.total) else (-pl.total) end)
-                                FROM hr_payslip as hp, hr_payslip_line as pl
-                                WHERE hp.employee_id = %s AND hp.state = 'done'
-                                AND hp.date_from >= %s AND hp.date_to <= %s AND hp.id = pl.slip_id AND pl.code = %s""",
-                                    (self.employee_id, from_date, to_date, code))
-                res = self.env.cr.fetchone()
-                return res and res[0] or 0.0
-
-        # we keep a dict with the result because a value can be overwritten by another rule with the same code
-        result_dict = {}
-        rules_dict = {}
-        worked_days_dict = {}
-        inputs_dict = {}
-        blacklist = []
-        payslip = self.env['hr.payslip'].browse(payslip_id)
-        for worked_days_line in payslip.worked_days_line_ids:
-            worked_days_dict[worked_days_line.code] = worked_days_line
-        for input_line in payslip.input_line_ids:
-            inputs_dict[input_line.code] = input_line
-
-        categories = BrowsableObject(payslip.employee_id.id, {}, self.env)
-        inputs = InputLine(payslip.employee_id.id, inputs_dict, self.env)
-        worked_days = WorkedDays(payslip.employee_id.id, worked_days_dict, self.env)
-        payslips = Payslips(payslip.employee_id.id, payslip, self.env)
-        rules = BrowsableObject(payslip.employee_id.id, rules_dict, self.env)
-
-        baselocaldict = {'categories': categories, 'rules': rules, 'payslip': payslips, 'worked_days': worked_days,
-                         'inputs': inputs}
-        # get the ids of the structures on the contracts and their parent id as well
-        contracts = self.env['hr.contract'].browse(contract_ids)
-        if len(contracts) == 1 and payslip.struct_id:
-            structure_ids = list(set(payslip.struct_id._get_parent_structure().ids))
-        else:
-            structure_ids = contracts.get_all_structures()
-        # get the rules of the structure and thier children
-        rule_ids = self.env['hr.payroll.structure'].browse(structure_ids).get_all_rules()
-        # run the rules by sequence
-        sorted_rule_ids = [id for id, sequence in sorted(rule_ids, key=lambda x: x[1])]
-        sorted_rules = self.env['hr.salary.rule'].browse(sorted_rule_ids)
-
-        for contract in contracts:
-
-            employee = contract.employee_id
-            localdict = dict(baselocaldict, employee=employee, contract=contract)
-            for rule in sorted_rules:
-                key = rule.code + '-' + str(contract.id)
-                localdict['result'] = None
-                localdict['result_qty'] = 1.0
-                localdict['result_rate'] = 100
-                # check if the rule can be applied
-                if rule._satisfy_condition(localdict) and rule.id not in blacklist:
-                    # compute the amount of the rule
-                    amount, qty, rate = rule._compute_rule(localdict)
-                    # check if there is already a rule computed with that code
-                    previous_amount = rule.code in localdict and localdict[rule.code] or 0.0
-                    # set/overwrite the amount computed for this rule in the localdict
-                    tot_rule = amount * qty * rate / 100.0
-                    localdict[rule.code] = tot_rule
-                    rules_dict[rule.code] = rule
-                    # sum the amount for its salary category
-                    localdict = _sum_salary_rule_category(localdict, rule.category_id, tot_rule - previous_amount)
-                    # create/overwrite the rule in the temporary results
-                    result_dict[key] = {
-                        'salary_rule_id': rule.id,
-                        'contract_id': contract.id,
-                        'name': rule.name,
-                        'code': rule.code,
-                        'category_id': rule.category_id.id,
-                        'sequence': rule.sequence,
-                        'appears_on_payslip': rule.appears_on_payslip,
-                        'condition_select': rule.condition_select,
-                        'condition_python': rule.condition_python,
-                        'condition_range': rule.condition_range,
-                        'condition_range_min': rule.condition_range_min,
-                        'condition_range_max': rule.condition_range_max,
-                        'amount_select': rule.amount_select,
-                        'amount_fix': rule.amount_fix,
-                        'amount_python_compute': rule.amount_python_compute,
-                        'amount_percentage': rule.amount_percentage,
-                        'amount_percentage_base': rule.amount_percentage_base,
-                        'register_id': rule.register_id.id,
-                        'amount': amount,
-                        'salary_type': rule.type.id,
-                        'employee_id': contract.employee_id.id,
-                        'quantity': qty,
-                        'rate': rate,
-                    }
-                else:
-                    # blacklist this rule and its children
-                    blacklist += [id for id, seq in rule._recursive_search_of_rules()]
-
-        return list(result_dict.values())
-
+    # IBRAHIM
+    # def check_installments_pay(self):
+    #     slip_line_obj = self.env['hr.payslip.line']
+    #     loan_obj = self.env['hr.loan']
+    #     rule_obj = self.env['hr.salary.rule']
+    #     skip_installment_obj = self.env['hr.skip.installment']
+    #     for payslip in self:
+    #         if not payslip.contract_id:
+    #             raise UserError(_("Please enter Employee contract first."))
+    #         loan_ids = loan_obj.search(['|', '&', ('start_date', '>=', payslip.date_from),
+    #                                     ('start_date', '<=', payslip.date_to),
+    #                                     ('start_date', '<=', payslip.date_from),
+    #                                     ('employee_id', '=', payslip.employee_id.id),
+    #                                     ('state', '=', 'approve')])
+    #         rule_ids = rule_obj.search([('code', '=', 'LOAN')])
+    #         if rule_ids:
+    #             rule = rule_ids[0]
+    #             oids = slip_line_obj.search([('slip_id', '=', payslip.id), ('code', '=', 'LOAN')])
+    #             if oids:
+    #                 oids.unlink()
+    #             for loan in loan_ids:
+    #                 skip_installment_ids = skip_installment_obj.search(
+    #                     [('loan_id', '=', loan.id), ('state', '=', 'approve'), ('date', '>=', payslip.date_from),
+    #                      ('date', '<=', payslip.date_to)])
+    #                 if not skip_installment_ids:
+    #                     slip_line_data = {
+    #                         'slip_id': payslip.id,
+    #                         'salary_rule_id': rule.id,
+    #                         'contract_id': payslip.contract_id.id,
+    #                         'name': loan.name,
+    #                         'code': 'LOAN' + str(loan.id),
+    #                         'category_id': rule.category_id.id,
+    #                         'sequence': rule.sequence + loan.id,
+    #                         'appears_on_payslip': rule.appears_on_payslip,
+    #                         'condition_select': rule.condition_select,
+    #                         'condition_python': rule.condition_python,
+    #                         'condition_range': rule.condition_range,
+    #                         'condition_range_min': rule.condition_range_min,
+    #                         'condition_range_max': rule.condition_range_max,
+    #                         'amount_select': rule.amount_select,
+    #                         'amount_fix': rule.amount_fix,
+    #                         'amount_python_compute': rule.amount_python_compute,
+    #                         'amount_percentage': rule.amount_percentage,
+    #                         'amount_percentage_base': rule.amount_percentage_base,
+    #                         'register_id': rule.register_id.id,
+    #                         'salary_type': rule.type.id,
+    #                         'amount': -(loan.deduction_amount),
+    #                         'employee_id': payslip.employee_id.id,
+    #                     }
+    #                     if abs(slip_line_data['amount']) > loan.amount_to_pay:
+    #                         slip_line_data.update({'amount': -(loan.amount_to_pay)})
+    #                     slip_line_obj.create(slip_line_data)
+    #                     net_ids = slip_line_obj.search([('slip_id', '=', payslip.id), ('code', '=', 'NET')])
+    #                     if net_ids:
+    #                         net_record = net_ids[0]
+    #                         net_ids.write({'amount': net_record.amount + slip_line_data['amount']})
+    #     return True
+    #
+    #
+    # def compute_sheet_ahcec(self):
+    #     for payslip in self:
+    #         number = payslip.number or self.env['ir.sequence'].next_by_code('salary.slip')
+    #         # delete old payslip lines
+    #         # payslip.line_ids.unlink()
+    #
+    #         payslip.line_ids = [(5,0,0)]
+    #
+    #         # set the list of contract for which the rules have to be applied
+    #         # if we don't give the contract, then the rules to apply should be for all current contracts of the employee
+    #         contract_ids = payslip.contract_id.ids or \
+    #                        self.get_contract(payslip.employee_id, payslip.date_from, payslip.date_to)
+    #         lines = [(0, 0, line) for line in self._get_payslip_lines_ahcec(contract_ids, payslip.id)]
+    #         payslip.write({'line_ids': lines, 'number': number})
+    #         payslip._get_work_type_salary(payslip, payslip.employee_id, payslip.date_from, payslip.date_to)
+    #         loan_ids = self.env['hr.loan'].sudo().search(['|', '&', ('start_date', '>=', payslip.date_from),
+    #                                     ('start_date', '<=', payslip.date_to),
+    #                                     ('start_date', '<=', payslip.date_from),
+    #                                     ('employee_id', '=', payslip.employee_id.id),
+    #                                     ('state', '=', 'approve')])
+    #         if loan_ids:
+    #             payslip.check_installments_pay()
+    #
+    #         other_ids = self.env['other.hr.payslip'].sudo().search([('date', '>=', payslip.date_from),
+    #                                       ('date', '<=', payslip.date_to),
+    #                                       ('employee_id', '=', payslip.employee_id.id),
+    #                                       ('state', '=', 'done')])
+    #         if other_ids:
+    #             payslip.check_other_allowance_new()
+    #         total_amount = sum(payslip.line_ids.filtered(lambda line: line.category_id.code == 'ALW').mapped('amount'))
+    #         basic = sum(payslip.line_ids.filtered(lambda line: line.category_id.code == 'BASIC').mapped('amount'))
+    #         payslip.vacation_pay = vacation_pay = 0
+    #         if payslip.month_days - payslip.leave_days > 0:
+    #             payslip.vacation_pay = vacation_pay = ((basic + total_amount) / (
+    #                     payslip.month_days - payslip.leave_days)) * payslip.annual_leaves
+    #
+    #         if payslip.vacation_pay:
+    #             slip_line_obj = self.env['hr.payslip.line']
+    #             WORTH_PAY_IDS = slip_line_obj.sudo().search([('slip_id', '=', payslip.id), ('code', '=', 'WORTH_PAY')])
+    #             VAC_PAY_IDS = slip_line_obj.sudo().search([('slip_id', '=', payslip.id), ('code', '=', 'VAC_PAY')])
+    #             if VAC_PAY_IDS:
+    #                 VAC_PAY_IDS.write({'amount': vacation_pay})
+    #             if WORTH_PAY_IDS:
+    #                 WORTH_PAY_record = WORTH_PAY_IDS[0]
+    #                 WORTH_PAY_IDS.write({'amount': basic - vacation_pay})
+    #     return True
+    #
+    # @api.model
+    # def _get_payslip_lines_ahcec(self, contract_ids, payslip_id):
+    #     def _sum_salary_rule_category(localdict, category, amount):
+    #         if category.parent_id:
+    #             localdict = _sum_salary_rule_category(localdict, category.parent_id, amount)
+    #         localdict['categories'].dict[category.code] = category.code in localdict['categories'].dict and \
+    #                                                       localdict['categories'].dict[category.code] + amount or amount
+    #         return localdict
+    #
+    #     class BrowsableObject(object):
+    #         def __init__(self, employee_id, dict, env):
+    #             self.employee_id = employee_id
+    #             self.dict = dict
+    #             self.env = env
+    #
+    #         def __getattr__(self, attr):
+    #             return attr in self.dict and self.dict.__getitem__(attr) or 0.0
+    #
+    #     class InputLine(BrowsableObject):
+    #         """a class that will be used into the python code, mainly for usability purposes"""
+    #
+    #         def sum(self, code, from_date, to_date=None):
+    #             if to_date is None:
+    #                 to_date = fields.Date.today()
+    #             self.env.cr.execute("""
+    #                     SELECT sum(amount) as sum
+    #                     FROM hr_payslip as hp, hr_payslip_input as pi
+    #                     WHERE hp.employee_id = %s AND hp.state = 'done'
+    #                     AND hp.date_from >= %s AND hp.date_to <= %s AND hp.id = pi.payslip_id AND pi.code = %s""",
+    #                                 (self.employee_id, from_date, to_date, code))
+    #             return self.env.cr.fetchone()[0] or 0.0
+    #
+    #     class WorkedDays(BrowsableObject):
+    #         """a class that will be used into the python code, mainly for usability purposes"""
+    #
+    #         def _sum(self, code, from_date, to_date=None):
+    #             if to_date is None:
+    #                 to_date = fields.Date.today()
+    #             self.env.cr.execute("""
+    #                     SELECT sum(number_of_days) as number_of_days, sum(number_of_hours) as number_of_hours
+    #                     FROM hr_payslip as hp, hr_payslip_worked_days as pi
+    #                     WHERE hp.employee_id = %s AND hp.state = 'done'
+    #                     AND hp.date_from >= %s AND hp.date_to <= %s AND hp.id = pi.payslip_id AND pi.code = %s""",
+    #                                 (self.employee_id, from_date, to_date, code))
+    #             return self.env.cr.fetchone()
+    #
+    #         def sum(self, code, from_date, to_date=None):
+    #             res = self._sum(code, from_date, to_date)
+    #             return res and res[0] or 0.0
+    #
+    #         def sum_hours(self, code, from_date, to_date=None):
+    #             res = self._sum(code, from_date, to_date)
+    #             return res and res[1] or 0.0
+    #
+    #     class Payslips(BrowsableObject):
+    #         """a class that will be used into the python code, mainly for usability purposes"""
+    #
+    #         def sum(self, code, from_date, to_date=None):
+    #             if to_date is None:
+    #                 to_date = fields.Date.today()
+    #             self.env.cr.execute("""SELECT sum(case when hp.credit_note = False then (pl.total) else (-pl.total) end)
+    #                             FROM hr_payslip as hp, hr_payslip_line as pl
+    #                             WHERE hp.employee_id = %s AND hp.state = 'done'
+    #                             AND hp.date_from >= %s AND hp.date_to <= %s AND hp.id = pl.slip_id AND pl.code = %s""",
+    #                                 (self.employee_id, from_date, to_date, code))
+    #             res = self.env.cr.fetchone()
+    #             return res and res[0] or 0.0
+    #
+    #     # we keep a dict with the result because a value can be overwritten by another rule with the same code
+    #     result_dict = {}
+    #     rules_dict = {}
+    #     worked_days_dict = {}
+    #     inputs_dict = {}
+    #     blacklist = []
+    #     payslip = self.env['hr.payslip'].browse(payslip_id)
+    #     for worked_days_line in payslip.worked_days_line_ids:
+    #         worked_days_dict[worked_days_line.code] = worked_days_line
+    #     for input_line in payslip.input_line_ids:
+    #         inputs_dict[input_line.code] = input_line
+    #
+    #     categories = BrowsableObject(payslip.employee_id.id, {}, self.env)
+    #     inputs = InputLine(payslip.employee_id.id, inputs_dict, self.env)
+    #     worked_days = WorkedDays(payslip.employee_id.id, worked_days_dict, self.env)
+    #     payslips = Payslips(payslip.employee_id.id, payslip, self.env)
+    #     rules = BrowsableObject(payslip.employee_id.id, rules_dict, self.env)
+    #
+    #     baselocaldict = {'categories': categories, 'rules': rules, 'payslip': payslips, 'worked_days': worked_days,
+    #                      'inputs': inputs}
+    #     # get the ids of the structures on the contracts and their parent id as well
+    #     contracts = self.env['hr.contract'].browse(contract_ids)
+    #     if len(contracts) == 1 and payslip.struct_id:
+    #         structure_ids = list(set(payslip.struct_id._get_parent_structure().ids))
+    #     else:
+    #         structure_ids = contracts.get_all_structures()
+    #     # get the rules of the structure and thier children
+    #     rule_ids = self.env['hr.payroll.structure'].browse(structure_ids).get_all_rules()
+    #     # run the rules by sequence
+    #     sorted_rule_ids = [id for id, sequence in sorted(rule_ids, key=lambda x: x[1])]
+    #     sorted_rules = self.env['hr.salary.rule'].browse(sorted_rule_ids)
+    #
+    #     for contract in contracts:
+    #
+    #         employee = contract.employee_id
+    #         localdict = dict(baselocaldict, employee=employee, contract=contract)
+    #         for rule in sorted_rules:
+    #             key = rule.code + '-' + str(contract.id)
+    #             localdict['result'] = None
+    #             localdict['result_qty'] = 1.0
+    #             localdict['result_rate'] = 100
+    #             # check if the rule can be applied
+    #             if rule._satisfy_condition(localdict) and rule.id not in blacklist:
+    #                 # compute the amount of the rule
+    #                 amount, qty, rate = rule._compute_rule(localdict)
+    #                 # check if there is already a rule computed with that code
+    #                 previous_amount = rule.code in localdict and localdict[rule.code] or 0.0
+    #                 # set/overwrite the amount computed for this rule in the localdict
+    #                 tot_rule = amount * qty * rate / 100.0
+    #                 localdict[rule.code] = tot_rule
+    #                 rules_dict[rule.code] = rule
+    #                 # sum the amount for its salary category
+    #                 localdict = _sum_salary_rule_category(localdict, rule.category_id, tot_rule - previous_amount)
+    #                 # create/overwrite the rule in the temporary results
+    #                 result_dict[key] = {
+    #                     'salary_rule_id': rule.id,
+    #                     'contract_id': contract.id,
+    #                     'name': rule.name,
+    #                     'code': rule.code,
+    #                     'category_id': rule.category_id.id,
+    #                     'sequence': rule.sequence,
+    #                     'appears_on_payslip': rule.appears_on_payslip,
+    #                     'condition_select': rule.condition_select,
+    #                     'condition_python': rule.condition_python,
+    #                     'condition_range': rule.condition_range,
+    #                     'condition_range_min': rule.condition_range_min,
+    #                     'condition_range_max': rule.condition_range_max,
+    #                     'amount_select': rule.amount_select,
+    #                     'amount_fix': rule.amount_fix,
+    #                     'amount_python_compute': rule.amount_python_compute,
+    #                     'amount_percentage': rule.amount_percentage,
+    #                     'amount_percentage_base': rule.amount_percentage_base,
+    #                     'register_id': rule.register_id.id,
+    #                     'amount': amount,
+    #                     'salary_type': rule.type.id,
+    #                     'employee_id': contract.employee_id.id,
+    #                     'quantity': qty,
+    #                     'rate': rate,
+    #                 }
+    #             else:
+    #                 # blacklist this rule and its children
+    #                 blacklist += [id for id, seq in rule._recursive_search_of_rules()]
+    #
+    #     return list(result_dict.values())
+    # *******************************************************
     def check_other_allowance_new(self):
         slip_line_obj = self.env['hr.payslip.line']
         other_obj = self.env['other.hr.payslip']
         rule_obj = self.env['hr.salary.rule']
-        skip_installment_obj = self.env['hr.skip.installment']
+        # skip_installment_obj = self.env['hr.skip.installment']
         for payslip in self:
             if not payslip.contract_id:
                 raise UserError(_("Please enter Employee contract first."))
@@ -709,6 +715,8 @@ class Payslip(models.Model):
                             gross_ids.write({'amount': gross_record.amount + slip_line_data['amount']})
 
         return True
+
+
 # class HrPayrollLine(models.Model):
 #     _inherit = 'hr.payslip'
 #
@@ -732,9 +740,9 @@ class HrPayslipRun(models.Model):
         for line in self.slip_ids:
             line.action_payslip_done_new()
 
-    def compute_sheet_all(self):
-        for line in self.slip_ids:
-            line.compute_sheet_ahcec()
-
-        return True
-
+    # IBRAHIM
+    # def compute_sheet_all(self):
+    #     for line in self.slip_ids:
+    #         line.compute_sheet_ahcec()
+    #     return True
+    # *********************
