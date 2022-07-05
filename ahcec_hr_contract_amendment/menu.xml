@@ -5,7 +5,7 @@
     <menuitem id="menu_contract_amendment"
               name="Contract Amendment"
               parent="hr.menu_hr_main"
-              
+
               action="ahcec_hr_contract_amendment.action_contract_amendment_view"
               sequence="5"
               />
