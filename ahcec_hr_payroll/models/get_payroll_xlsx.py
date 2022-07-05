@@ -38,7 +38,7 @@ class WizardPayrollHistory(models.TransientModel):
 
     def get_years(self):
         year_list = []
-        current_year = int(datetime.strptime(fields.Date.today(), DEFAULT_SERVER_DATE_FORMAT).year)
+        current_year = int(datetime.strptime(str(fields.Date.today()), DEFAULT_SERVER_DATE_FORMAT).year)
         start = 2019
         end = current_year + 1
         for i in range(start, end):
