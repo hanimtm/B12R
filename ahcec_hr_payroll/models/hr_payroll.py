@@ -52,13 +52,13 @@ class HrPayslip(models.Model):
             leave_days = sum(line.worked_days_line_ids.filtered(lambda record: record.code == 'unpaid_leave').mapped('number_of_days'))
 
             annual_leaves = sum(line.worked_days_line_ids.filtered(lambda record: record.code in ('annual_leave','sick_leaves')).mapped('number_of_days'))
-            day_from = datetime.strptime(line.date_from, DEFAULT_SERVER_DATE_FORMAT)
-            day_to = datetime.strptime(line.date_to, DEFAULT_SERVER_DATE_FORMAT)
+            day_from = datetime.strptime(str(line.date_from), DEFAULT_SERVER_DATE_FORMAT)
+            day_to = datetime.strptime(str(line.date_to), DEFAULT_SERVER_DATE_FORMAT)
             nb_of_days = (day_to - day_from).days + 1
             line.month_days = nb_of_days
             line.leave_days = leave_days
             line.annual_leaves = annual_leaves
-            month = datetime.strptime(line.date_from, DEFAULT_SERVER_DATE_FORMAT).month
+            month = datetime.strptime(str(line.date_from), DEFAULT_SERVER_DATE_FORMAT).month
             # if nb_of_days>30 or month==2 and nb_of_days==28: #If month is February or days are greater than 28 then payment days set to 30
             #     nb_of_days = 30
             line.payment_days = nb_of_days - leave_days
@@ -79,7 +79,8 @@ class HrPayslip(models.Model):
         for line in self:
             total_amount = sum(line.line_ids.filtered(lambda line: line.category_id.code == 'ALW').mapped('amount'))
             basic = sum(line.line_ids.filtered(lambda line: line.category_id.code == 'BASIC').mapped('amount'))
-            line.vacation_pay = ((basic + total_amount) / (line.month_days - line.leave_days)) * line.annual_leaves
+            if line.month_days - line.leave_days != 0:
+                line.vacation_pay = ((basic + total_amount) / (line.month_days - line.leave_days)) * line.annual_leaves
 
     def get_other_allowance_deduction(self, employee_id, date_from, date_to):
         from_date = datetime.strptime(date_from, DEFAULT_SERVER_DATE_FORMAT)
